@@ -16,7 +16,11 @@ export async function createRecord(req: Request, res: Response, next: NextFuncti
 
 export async function listRecords(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await recordsService.listRecords(req.query as unknown as ListRecordsQuery);
+    const result = await recordsService.listRecords(
+      req.query as unknown as ListRecordsQuery,
+      req.user!.userId,
+      req.user!.role
+    );
     res.status(200).json(result);
   } catch (error) {
     next(error);
@@ -25,7 +29,11 @@ export async function listRecords(req: Request, res: Response, next: NextFunctio
 
 export async function getRecordById(req: Request, res: Response, next: NextFunction) {
   try {
-    const record = await recordsService.getRecordById(req.params.id as string);
+    const record = await recordsService.getRecordById(
+      req.params.id as string,
+      req.user!.userId,
+      req.user!.role
+    );
     res.status(200).json(record);
   } catch (error) {
     next(error);
@@ -36,7 +44,9 @@ export async function updateRecord(req: Request, res: Response, next: NextFuncti
   try {
     const record = await recordsService.updateRecord(
       req.params.id as string,
-      req.body as UpdateRecordInput
+      req.body as UpdateRecordInput,
+      req.user!.userId,
+      req.user!.role
     );
     res.status(200).json(record);
   } catch (error) {
@@ -46,7 +56,11 @@ export async function updateRecord(req: Request, res: Response, next: NextFuncti
 
 export async function deleteRecord(req: Request, res: Response, next: NextFunction) {
   try {
-    await recordsService.deleteRecord(req.params.id as string);
+    await recordsService.deleteRecord(
+      req.params.id as string,
+      req.user!.userId,
+      req.user!.role
+    );
     res.status(204).send();
   } catch (error) {
     next(error);

@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../middlewares/errorHandler";
 import type { CreateRecordInput, UpdateRecordInput, ListRecordsQuery } from "./records.schema";
@@ -32,12 +32,15 @@ export async function createRecord(data: CreateRecordInput, userId: string) {
   return record;
 }
 
-export async function listRecords(query: ListRecordsQuery) {
+export async function listRecords(query: ListRecordsQuery, userId: string, role: Role) {
   const { page, limit, type, category, from, to, search, sortBy, order } = query;
   const skip = (page - 1) * limit >= 0 ? (page - 1) * limit : 0;
 
+  const isAdmin = role === "ADMIN";
+
   const where: Prisma.RecordWhereInput = {
     deletedAt: null,
+    ...(!isAdmin && { userId }),
     ...(type && { type }),
     ...(category && { category: { contains: category, mode: "insensitive" } }),
     ...(from && { date: { gte: new Date(from) } }),
@@ -84,7 +87,11 @@ export async function listRecords(query: ListRecordsQuery) {
   };
 }
 
-export async function getRecordById(id: string) {
+export async function getRecordById(id: string, userId: string, role: Role) {
+  if (role !== "ADMIN") {
+    throw new AppError("Forbidden", 403);
+  }
+
   const record = await prisma.record.findUnique({
     where: { id },
     select: recordSelectFields,
@@ -92,6 +99,10 @@ export async function getRecordById(id: string) {
 
   if (!record) {
     throw new AppError("Record not found", 404);
+  }
+  
+  if (record.userId !== userId) {
+    throw new AppError("Forbidden", 403);
   }
 
   if (record.deletedAt !== null) {
@@ -101,7 +112,11 @@ export async function getRecordById(id: string) {
   return record;
 }
 
-export async function updateRecord(id: string, data: UpdateRecordInput) {
+export async function updateRecord(id: string, data: UpdateRecordInput, userId: string, role: Role) {
+  if (role !== "ADMIN") {
+    throw new AppError("Forbidden", 403);
+  }
+
   const existing = await prisma.record.findUnique({
     where: { id },
   });
@@ -112,6 +127,10 @@ export async function updateRecord(id: string, data: UpdateRecordInput) {
 
   if (existing.deletedAt !== null) {
     throw new AppError("Record has been deleted", 400);
+  }
+
+  if (existing.userId !== userId) {
+    throw new AppError("Forbidden", 403);
   }
 
   const record = await prisma.record.update({
@@ -129,7 +148,11 @@ export async function updateRecord(id: string, data: UpdateRecordInput) {
   return record;
 }
 
-export async function deleteRecord(id: string) {
+export async function deleteRecord(id: string, userId: string, role: Role) {
+  if (role !== "ADMIN") {
+    throw new AppError("Forbidden", 403);
+  }
+
   const existing = await prisma.record.findUnique({
     where: { id },
   });
@@ -142,7 +165,10 @@ export async function deleteRecord(id: string) {
     throw new AppError("Record is already deleted", 400);
   }
 
-  // Soft delete — never hard delete
+  if (existing.userId !== userId) {
+    throw new AppError("Forbidden", 403);
+  }
+
   await prisma.record.update({
     where: { id },
     data: { deletedAt: new Date() },
