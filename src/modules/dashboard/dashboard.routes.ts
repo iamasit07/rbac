@@ -29,6 +29,7 @@ router.get(
 router.get(
   "/recent",
   authenticate,
+  authorize("ANALYST", "ADMIN"),
   dashboardController.getRecent
 );
 

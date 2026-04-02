@@ -1,14 +1,29 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 
-export async function getSummary() {
+interface TrendRow {
+  month: string;
+  type: string;
+  total: Prisma.Decimal;
+}
+
+function buildUserScope(userId: string, role: Role): Prisma.RecordWhereInput {
+  return {
+    deletedAt: null,
+    ...(role !== "ADMIN" && { userId }),
+  };
+}
+
+export async function getSummary(userId: string, role: Role) {
+  const scope = buildUserScope(userId, role);
+
   const [income, expense] = await Promise.all([
     prisma.record.aggregate({
-      where: { type: "INCOME", deletedAt: null },
+      where: { ...scope, type: "INCOME" },
       _sum: { amount: true },
     }),
     prisma.record.aggregate({
-      where: { type: "EXPENSE", deletedAt: null },
+      where: { ...scope, type: "EXPENSE" },
       _sum: { amount: true },
     }),
   ]);
@@ -24,10 +39,12 @@ export async function getSummary() {
   };
 }
 
-export async function getByCategory() {
+export async function getByCategory(userId: string, role: Role) {
+  const scope = buildUserScope(userId, role);
+
   const totals = await prisma.record.groupBy({
     by: ["category", "type"],
-    where: { deletedAt: null },
+    where: scope,
     _sum: { amount: true },
     orderBy: { _sum: { amount: "desc" } },
   });
@@ -39,43 +56,46 @@ export async function getByCategory() {
   }));
 }
 
-export async function getTrends() {
+export async function getTrends(userId: string, role: Role) {
   const twelveMonthsAgo = new Date();
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
   twelveMonthsAgo.setDate(1);
   twelveMonthsAgo.setHours(0, 0, 0, 0);
 
-  const records = await prisma.record.findMany({
-    where: {
-      deletedAt: null,
-      date: { gte: twelveMonthsAgo },
-    },
-    select: {
-      amount: true,
-      type: true,
-      date: true,
-    },
-    orderBy: { date: "asc" },
-  });
+  const isAdmin = role === "ADMIN";
 
+  // Aggregate in SQL — returns ~24 rows max instead of N records
+  const rows = await prisma.$queryRaw<TrendRow[]>`
+    SELECT
+      TO_CHAR(date, 'YYYY-MM') AS month,
+      type::TEXT AS type,
+      COALESCE(SUM(amount), 0) AS total
+    FROM "Record"
+    WHERE "deletedAt" IS NULL
+      AND date >= ${twelveMonthsAgo}
+      ${isAdmin ? Prisma.sql`` : Prisma.sql`AND "userId" = ${userId}`}
+    GROUP BY month, type
+    ORDER BY month ASC, type ASC
+  `;
+
+  // Merge INCOME/EXPENSE rows into a single object per month
   const monthlyMap = new Map<string, { income: Prisma.Decimal; expense: Prisma.Decimal }>();
 
-  for (const record of records) {
-    const key = `${record.date.getFullYear()}-${String(record.date.getMonth() + 1).padStart(2, "0")}`;
-
-    if (!monthlyMap.has(key)) {
-      monthlyMap.set(key, {
+  for (const row of rows) {
+    if (!monthlyMap.has(row.month)) {
+      monthlyMap.set(row.month, {
         income: new Prisma.Decimal(0),
         expense: new Prisma.Decimal(0),
       });
     }
 
-    const entry = monthlyMap.get(key)!;
+    const entry = monthlyMap.get(row.month)!;
+    const amount = new Prisma.Decimal(row.total.toString());
 
-    if (record.type === "INCOME") {
-      entry.income = entry.income.plus(record.amount);
+    if (row.type === "INCOME") {
+      entry.income = amount;
     } else {
-      entry.expense = entry.expense.plus(record.amount);
+      entry.expense = amount;
     }
   }
 
@@ -87,9 +107,11 @@ export async function getTrends() {
   }));
 }
 
-export async function getRecent() {
+export async function getRecent(userId: string, role: Role) {
+  const scope = buildUserScope(userId, role);
+
   const records = await prisma.record.findMany({
-    where: { deletedAt: null },
+    where: scope,
     select: {
       id: true,
       amount: true,
