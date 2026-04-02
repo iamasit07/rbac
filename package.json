@@ -29,6 +29,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/ms": "^2.1.0",
     "@types/node": "^25.5.0",
     "@types/pg": "^8.20.0",
     "prisma": "^7.6.0",
