@@ -13,6 +13,8 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
   role: z.enum(Role).optional(),
   isActive: z.boolean().optional(),
+}).refine((data) => data.role !== undefined || data.isActive !== undefined, {
+  message: "At least one of 'role' or 'isActive' must be provided",
 });
 
 export const listUsersSchema = z.object({

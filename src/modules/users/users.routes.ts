@@ -1,8 +1,7 @@
 import { Router } from "express";
-import { authenticate } from "../../middlewares/auth.middleware";
 import { authorize } from "../../middlewares/rbac.middleware";
-import { validate } from "../../middlewares/validate";
-import { validateQuery } from "../../middlewares/validate";
+import { authenticate } from "../../middlewares/auth.middleware";
+import { validate, validateQuery } from "../../middlewares/validate";
 import { createUserSchema, updateUserSchema, listUsersSchema } from "./users.schema";
 import * as usersController from "./users.controller";
 

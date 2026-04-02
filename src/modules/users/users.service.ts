@@ -11,6 +11,7 @@ const userSelectFields = {
   isActive: true,
   createdAt: true,
   updatedAt: true,
+  deletedAt: true,
 } as const;
 
 export async function createUser(data: CreateUserInput) {
@@ -67,12 +68,16 @@ export async function listUsers(query: ListUsersQuery) {
 
 export async function getUserById(id: string) {
   const user = await prisma.user.findUnique({
-    where: { id, deletedAt: null },
+    where: { id },
     select: userSelectFields,
   });
 
   if (!user) {
     throw new AppError("User not found", 404);
+  }
+
+  if(user.deletedAt === null){
+    throw new AppError("User is not deleted", 400);
   }
 
   return user;
@@ -107,7 +112,7 @@ export async function updateUser(targetId: string, actorId: string, data: Update
 
 export async function deleteUser(targetId: string, actorId: string) {
   if (actorId === targetId) {
-    throw new AppError("Admins cannot modify their own account.", 403);
+    throw new AppError("Admins cannot delete their own account.", 403);
   }
 
   const existing = await prisma.user.findUnique({
