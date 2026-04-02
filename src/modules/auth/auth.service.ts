@@ -5,8 +5,9 @@ import { prisma } from "../../lib/prisma";
 import { env } from "../../config/env";
 import { AppError } from "../../middlewares/errorHandler";
 import type { RegisterInput, LoginInput } from "./auth.schema";
+import { Role } from "@prisma/client";
 
-function signToken(userId: string, role: string): string {
+function signToken(userId: string, role: Role): string {
   const payload = { sub: userId, role };
   return jwt.sign(payload, env.JWT_SECRET , {
     expiresIn: env.JWT_EXPIRY as StringValue,
@@ -39,21 +40,21 @@ export async function register(data: RegisterInput) {
 
 export async function login(data: LoginInput) {
   const user = await prisma.user.findUnique({
-    where: { email: data.email, deletedAt: null },
+    where: { email: data.email },
   });
 
   if (!user) {
     throw new AppError("Invalid credentials", 401);
   }
 
+  if(user.isActive === false){
+    throw new AppError("Account is disabled", 403);
+  }
+
   const validPassword = await argon2.verify(user.password, data.password);
 
   if (!validPassword) {
     throw new AppError("Invalid credentials", 401);
-  }
-
-  if (!user.isActive) {
-    throw new AppError("Account is disabled", 403);
   }
 
   const token = signToken(user.id, user.role);
@@ -71,7 +72,7 @@ export async function login(data: LoginInput) {
 
 export async function getMe(userId: string) {
   const user = await prisma.user.findUnique({
-    where: { id: userId, deletedAt: null },
+    where: { id: userId },
     select: {
       id: true,
       name: true,
@@ -85,6 +86,10 @@ export async function getMe(userId: string) {
 
   if (!user) {
     throw new AppError("User not found", 404);
+  }
+
+  if(user.isActive === false){
+    throw new AppError("Account is disabled", 403);
   }
 
   return user;
