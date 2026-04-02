@@ -2,6 +2,10 @@ import { Request, Response, NextFunction } from "express";
 import { Role } from "@prisma/client";
 
 export function authorize(...roles: Role[]) {
+  if (roles.length === 0) {
+    throw new Error("authorize() called with no roles.");
+  }
+
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ error: "Unauthorized" });

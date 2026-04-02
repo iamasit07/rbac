@@ -1,12 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { z } from "zod";
 import { env } from "../config/env";
 import { Role } from "@prisma/client";
 
-export interface AuthPayload {
-  sub: string;
-  role: Role;
-}
+const jwtPayloadSchema = z.object({
+  sub: z.string(),
+  role: z.enum(Role),
+});
+
+export type AuthPayload = z.infer<typeof jwtPayloadSchema>;
 
 declare global {
   namespace Express {
@@ -30,11 +33,17 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
+    const decoded = jwt.verify(token, env.JWT_SECRET);
+    const result = jwtPayloadSchema.safeParse(decoded);
+
+    if (!result.success) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
 
     req.user = {
-      userId: decoded.sub,
-      role: decoded.role,
+      userId: result.data.sub,
+      role: result.data.role,
     };
 
     next();
