@@ -99,7 +99,7 @@ export async function getRecordById(id: string, userId: string, role: Role) {
   
   // Admin can access any record, owner can access their own
   if (role !== "ADMIN" && record.userId !== userId) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError("Record not found", 404);
   }
 
   if (record.deletedAt !== null) {
@@ -123,29 +123,30 @@ export async function updateRecord(id: string, data: UpdateRecordInput, userId: 
   }
 
   if (role !== "ADMIN" && existing.userId !== userId) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError("Record not found", 404);
   }
 
-  const record = await prisma.record.update({
-    where: { id },
-    data: {
-      ...(data.amount !== undefined && { amount: new Prisma.Decimal(data.amount) }),
-      ...(data.type !== undefined && { type: data.type }),
-      ...(data.category !== undefined && { category: data.category }),
-      ...(data.date !== undefined && { date: new Date(data.date) }),
-      ...(data.notes !== undefined && { notes: data.notes }),
-    },
-    select: recordSelectFields,
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId: userId,
-      action: "UPDATE_RECORD",
-      targetId: id,
-      meta: JSON.parse(JSON.stringify(data)),
-    },
-  });
+  const [record] = await prisma.$transaction([
+    prisma.record.update({
+      where: { id },
+      data: {
+        ...(data.amount !== undefined && { amount: new Prisma.Decimal(data.amount) }),
+        ...(data.type !== undefined && { type: data.type }),
+        ...(data.category !== undefined && { category: data.category }),
+        ...(data.date !== undefined && { date: new Date(data.date) }),
+        ...(data.notes !== undefined && { notes: data.notes }),
+      },
+      select: recordSelectFields,
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: userId,
+        action: "UPDATE_RECORD",
+        targetId: id,
+        meta: JSON.parse(JSON.stringify(data)),
+      },
+    })
+  ]);
 
   return record;
 }
@@ -164,19 +165,20 @@ export async function deleteRecord(id: string, userId: string, role: Role) {
   }
 
   if (role !== "ADMIN" && existing.userId !== userId) {
-    throw new AppError("Forbidden", 403);
+    throw new AppError("Record not found", 404);
   }
 
-  await prisma.record.update({
-    where: { id },
-    data: { deletedAt: new Date() },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId: userId,
-      action: "DELETE_RECORD",
-      targetId: id,
-    },
-  });
+  await prisma.$transaction([
+    prisma.record.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: userId,
+        action: "DELETE_RECORD",
+        targetId: id,
+      },
+    })
+  ]);
 }

@@ -101,20 +101,21 @@ export async function updateUser(targetId: string, actorId: string, data: Update
     throw new AppError("User is deleted", 400);
   }
 
-  const user = await prisma.user.update({
-    where: { id: targetId },
-    data,
-    select: userSelectFields,
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId,
-      action: "UPDATE_USER",
-      targetId,
-      meta: JSON.parse(JSON.stringify(data)),
-    },
-  });
+  const [user] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: targetId },
+      data,
+      select: userSelectFields,
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId,
+        action: "UPDATE_USER",
+        targetId,
+        meta: JSON.parse(JSON.stringify(data)),
+      },
+    })
+  ]);
 
   return user;
 }
@@ -136,16 +137,17 @@ export async function deleteUser(targetId: string, actorId: string) {
     throw new AppError("User is already deleted", 400);
   }
 
-  await prisma.user.update({
-    where: { id: targetId },
-    data: { deletedAt: new Date() },
-  });
-
-  await prisma.auditLog.create({
-    data: {
-      actorId,
-      action: "DELETE_USER",
-      targetId,
-    },
-  });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: targetId },
+      data: { deletedAt: new Date() },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId,
+        action: "DELETE_USER",
+        targetId,
+      },
+    })
+  ]);
 }

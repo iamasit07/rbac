@@ -34,6 +34,7 @@ export function validateQuery(schema: z.ZodType) {
       value: result.data,
       enumerable: true,
       configurable: true,
+      writable: true,
     });
     next();
   };
