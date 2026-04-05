@@ -41,8 +41,7 @@ Deep access control logic prevents unauthorized mutation or data leaks:
 - Built on top of **PostgreSQL** configured cleanly via Prisma ORM schemas.
 - **Atomic Auditing**: When `ANALYST` or `ADMIN` users act destructively (such as Updating or Deleting user roles and records), their actions are serialized and logged in an immutable `AuditLog` table. This is executed using bulletproof `prisma.$transaction([])` commits. If the audit log fails, the initial modification rolls back natively to absolute zero.
 
-## ✨ "Additional Thoughtfulness" Included
-- **Beautiful React + Vite Frontend**: Provided in the `/frontend` directory to visually prove the underlying API behaviors, complete with interactive Recharts rendering the aggregated queries. Included `cors()` backend environment tuning so cross-origin requests work perfectly across custom ports.
+## ✨ "Additional Thoughtfulness" Included  
 - **Soft Deletions Architecture**: Prevents cascading hard-deletes. The `$transaction` updates `deletedAt` timestamps, preserving forensic financial timelines.
 - **Aggressive Rate Limiting**: General endpoints are shielded to 100 reqs/15m, while specialized `/api/auth` surfaces restrict password bruteforcing locally to 10 reqs/15m. 
 
