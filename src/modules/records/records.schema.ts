@@ -2,7 +2,10 @@ import { z } from "zod";
 import { EntryType } from "@prisma/client";
 
 export const createRecordSchema = z.object({
-  amount: z.number().positive("Amount must be positive"),
+  amount: z.union([
+    z.number().positive("Amount must be positive"),
+    z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Amount must be a positive numeric string")
+  ]),
   type: z.enum(EntryType),
   category: z.string().min(1, "Category is required").max(100),
   date: z.iso.datetime("Invalid datetime format"),
