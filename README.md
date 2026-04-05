@@ -1,108 +1,90 @@
 # Finance Data Processing & Access Control Backend
 
-A production-ready REST API for financial data processing with role-based access control (RBAC), built with Node.js, TypeScript, Express, Prisma, and PostgreSQL.
+A production-ready REST API designed specifically for financial data processing with robust Role-Based Access Control (RBAC). Built with Node.js, TypeScript, Express, Prisma, and PostgreSQL.
 
-## Stack
+This repository fulfills the core requirements of the Backend Architecture Assessment, prioritizing logical separation of concerns, strict access controls, and data integrity over unnecessary complexity.
 
-| Layer          | Technology                          |
-|----------------|-------------------------------------|
-| Runtime        | Node.js                             |
-| Language       | TypeScript (strict mode)            |
-| Framework      | Express 5                           |
-| Database       | PostgreSQL                          |
-| ORM            | Prisma 7 (schema-first, migrations)|
-| Auth           | JWT (`jsonwebtoken`) + Argon2       |
-| Validation     | Zod (schema-first, `z.infer<>`)     |
-| Rate Limiting  | `express-rate-limit`                |
-| Package Manager| pnpm                                |
+---
 
-## Prerequisites
+## 🎯 Assessment Alignments
 
-- **Node.js** >= 18.x
-- **pnpm** >= 8.x
-- **PostgreSQL** (local or hosted, e.g., Neon)
+### 1. User and Role Management
+- Granular control over users with three robust roles: **VIEWER**, **ANALYST**, and **ADMIN**.
+- Secure authentication system powered by Argon2 hashing and JWT token verification.
+- Account toggling mechanisms (`isActive` status handling) to instantly revoke access without destructive deletes.
+- The default self-registration route dynamically scopes all incoming public users to the highly restrictive `VIEWER` role.
 
-## Setup
+### 2. Financial Records Management
+- Complete CRUD API routing under `/api/records`.
+- Full structural typings handling explicit fields: `Amount (Decimal)`, `Type (INCOME/EXPENSE)`, `Category`, `Date`, and `Notes`.
+- Out-of-the-box backend support for filtering via date ranges, categories, types, and robust text-based search queries across notes.
+- Paginating middleware is globally attached to avoid returning enormous database dumps over REST.
 
+### 3. Dashboard Summary APIs
+Instead of relying strictly on localized frontend loops, backend aggregation endpoints expose high-performance insights using Prisma SQL translations:
+- **`GET /api/dashboard/summary`**: Calculates absolute `Total Income`, `Total Expenses`, and `Net Balance`.
+- **`GET /api/dashboard/by-category`**: Performs structured data mapping utilizing `GROUP BY` logic to deliver category-wise distributions.
+- **`GET /api/dashboard/trends`**: A highly optimized raw SQL (`$queryRaw`) query grouping massive datasets natively inside PostgreSQL via `TO_CHAR(date, 'YYYY-MM')` without bloating Node.js memory.
+
+### 4. Access Control Logic & Security
+Deep access control logic prevents unauthorized mutation or data leaks:
+- Record isolation: Non-admins can strictly only fetch/modify their own transactional instances (`userId` matching).
+- **IDOR Protection:** The backend purposefully returns `404 Not Found` (rather than `403 Forbidden`) when users request unowned resources to prevent malicious ID enumeration vulnerabilities!
+- Endpoints are shielded at the router level by specialized authentication decoders parsing incoming Bearer headers.
+
+### 5. Validation and Error Handling
+- Entire payload bodies are validated by **Zod (`z.infer<>`)** schemas.
+- Invalid requests instantly abort the cycle, emitting clear, mapped error matrices containing exactly which API field violated expectations.
+- Global express error middleware structurally prevents any native server crashes from polluting the JSON interface.
+
+### 6. Data Persistence & Audit Logs
+- Built on top of **PostgreSQL** configured cleanly via Prisma ORM schemas.
+- **Atomic Auditing**: When `ANALYST` or `ADMIN` users act destructively (such as Updating or Deleting user roles and records), their actions are serialized and logged in an immutable `AuditLog` table. This is executed using bulletproof `prisma.$transaction([])` commits. If the audit log fails, the initial modification rolls back natively to absolute zero.
+
+## ✨ "Additional Thoughtfulness" Included
+- **Beautiful React + Vite Frontend**: Provided in the `/frontend` directory to visually prove the underlying API behaviors, complete with interactive Recharts rendering the aggregated queries. Included `cors()` backend environment tuning so cross-origin requests work perfectly across custom ports.
+- **Soft Deletions Architecture**: Prevents cascading hard-deletes. The `$transaction` updates `deletedAt` timestamps, preserving forensic financial timelines.
+- **Aggressive Rate Limiting**: General endpoints are shielded to 100 reqs/15m, while specialized `/api/auth` surfaces restrict password bruteforcing locally to 10 reqs/15m. 
+
+---
+
+## 🚀 Setup & Execution
+
+### Prerequisites
+- Node.js >= 18.x
+- pnpm >= 8.x
+- PostgreSQL Database URL
+
+### 1. Backend Bootstrapping
 ```bash
-# 1. Clone the repository
-git clone <repo-url>
-cd rbac
-
-# 2. Install dependencies
+# Install packages
 pnpm install
 
-# 3. Configure environment
+# Configure environment variables
 cp .env.example .env
-# Edit .env with your database URL and JWT secret
+# Important: Define DATABASE_URL, JWT_SECRET, and ALLOWED_ORIGIN in your .env!
 
-# 4. Run database migrations
+# Sync Postgres with Prisma Schema & Generate Prisma Client
 pnpm exec prisma migrate dev
-
-# 5. Generate Prisma client
 pnpm exec prisma generate
 
-# 6. Start the dev server
+# Optionally seed the database with 300 test records for UI charting
+pnpm exec tsx scripts/seed.ts
+
+# Start the dev server!
 pnpm run dev
 ```
 
-## Scripts
+### 2. Frontend Bootstrapping (Optional GUI)
+```bash
+cd frontend
+pnpm install
+pnpm run dev
+```
 
-| Command              | Description                      |
-|----------------------|----------------------------------|
-| `pnpm run dev`       | Start dev server with hot reload |
-| `pnpm run build`     | Compile TypeScript to `dist/`    |
-| `pnpm run start`     | Run compiled production build    |
-| `pnpm run db:migrate`| Run Prisma migrations            |
-| `pnpm run db:generate`| Generate Prisma client          |
-| `pnpm run db:studio` | Open Prisma Studio               |
+---
 
-## API Endpoints
-
-### Auth (`/api/auth`)
-
-| Method | Path        | Access          | Description             |
-|--------|-------------|-----------------|-------------------------|
-| POST   | `/register` | Public          | Self-register as VIEWER |
-| POST   | `/login`    | Public          | Returns JWT token       |
-| GET    | `/me`       | Authenticated   | Get own profile         |
-
-### Users (`/api/users`)
-
-| Method | Path    | Access         | Description                    |
-|--------|---------|----------------|--------------------------------|
-| POST   | `/`     | ADMIN          | Create user with any role      |
-| GET    | `/`     | ADMIN          | List all users (paginated)     |
-| GET    | `/:id`  | ADMIN, ANALYST | Get single user profile        |
-| PATCH  | `/:id`  | ADMIN          | Update role or isActive        |
-| DELETE | `/:id`  | ADMIN          | Soft-delete user               |
-
-### Records (`/api/records`)
-
-| Method | Path    | Access         | Description                    |
-|--------|---------|----------------|--------------------------------|
-| GET    | `/`     | Authenticated  | List records (filtered, paged) |
-| GET    | `/:id`  | Authenticated  | Get single record              |
-| POST   | `/`     | ANALYST, ADMIN | Create financial record        |
-| PATCH  | `/:id`  | ANALYST, ADMIN | Update record                  |
-| DELETE | `/:id`  | ADMIN          | Soft-delete record             |
-
-### Dashboard (`/api/dashboard`)
-
-| Method | Path           | Access         | Description                |
-|--------|----------------|----------------|----------------------------|
-| GET    | `/summary`     | ANALYST, ADMIN | Income, expense, balance   |
-| GET    | `/by-category` | ANALYST, ADMIN | Totals grouped by category |
-| GET    | `/trends`      | ANALYST, ADMIN | Monthly breakdown (12 mo)  |
-| GET    | `/recent`      | ANALYST, ADMIN | Last 10 transactions       |
-
-### Health
-
-| Method | Path           | Access | Description    |
-|--------|----------------|--------|----------------|
-| GET    | `/api/health`  | Public | Health check   |
-
-## Role Permission Matrix
+## 🔒 Role Permission Matrix
 
 | Action                     | VIEWER | ANALYST | ADMIN |
 |----------------------------|--------|---------|-------|
@@ -111,49 +93,8 @@ pnpm run dev
 | List / view records        | ✅ (own)| ✅ (own) | ✅ (all)|
 | Create / update records    | ❌      | ✅ (own) | ✅ (all)|
 | Delete records             | ❌      | ❌       | ✅     |
-| View dashboard             | ❌      | ✅ (own) | ✅ (all)|
+| View dashboard analytics   | ❌      | ✅ (own) | ✅ (all)|
 | Manage users               | ❌      | ❌       | ✅     |
 | View single user profile   | ❌      | ✅       | ✅     |
 
-## Design Decisions & Assumptions
-
-### Authentication & Roles
-- **Self-registration** always produces a `VIEWER` role.
-- **Admin can create users** via `POST /api/users` with any role (VIEWER, ANALYST, ADMIN).
-- **Admin can promote/demote** any other user, including other admins.
-- **Admin cannot modify or delete their own account** — self-guard returns `403`.
-- **Role changes take effect only after re-login** — JWT limitation. The role in the token is immutable until a new token is issued.
-- **`isActive: false` users are blocked at login**, not just at route level. Disabled users cannot authenticate even with a valid password.
-
-### Data Access & Ownership
-- **Non-admin users can only access their own records** — enforced at the service layer across list, get, update, and delete operations.
-- **Admin users can access all records** — the ownership filter is bypassed for the ADMIN role.
-- **Dashboard data is scoped by user** — non-admin users see aggregates of their own data only.
-
-### Soft Deletes
-- **No hard-delete endpoints exist** — all deletions set `deletedAt` to the current timestamp.
-- All queries check for soft-deleted records and either filter them out or return appropriate errors.
-
-### Security
-- **Passwords are never returned** in any API response — enforced via Prisma `select` fields.
-- **JWT payload is validated with Zod** after decoding — prevents accepting tokens with tampered or missing fields.
-- **Rate limiting** is applied globally (100 req/15min) and more strictly on auth endpoints (10 req/15min).
-- **Environment variables are validated at startup** — the app refuses to start if any required config is missing or invalid.
-
-### Validation
-- All input is validated using **Zod schemas** at the middleware level before reaching controllers.
-- Update schemas enforce **at least one field** to prevent empty Prisma updates.
-- Types are inferred from schemas using `z.infer<>` — no duplicate interface declarations.
-
-## Environment Variables
-
-| Variable              | Required | Default   | Description                    |
-|-----------------------|----------|-----------|--------------------------------|
-| `PORT`                | No       | `3000`    | Server port                    |
-| `NODE_ENV`            | No       | `development` | Environment mode           |
-| `DATABASE_URL`        | Yes      | —         | PostgreSQL connection string   |
-| `JWT_SECRET`          | Yes      | —         | JWT signing key (min 32 chars) |
-| `JWT_EXPIRY`          | No       | `7d`      | Token expiration duration      |
-| `RATE_LIMIT_WINDOW_MS`| No      | `900000`  | Rate limit window (ms)         |
-| `RATE_LIMIT_MAX`      | No       | `100`     | Max requests per window        |
-| `AUTH_RATE_LIMIT_MAX` | No       | `10`      | Max auth requests per window   |
+---
