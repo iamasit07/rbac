@@ -54,7 +54,7 @@ Deep access control logic prevents unauthorized mutation or data leaks:
 - pnpm >= 8.x
 - PostgreSQL Database URL
 
-### 1. Backend Bootstrapping
+### Backend Bootstrapping
 ```bash
 # Install packages
 pnpm install
@@ -71,13 +71,6 @@ pnpm exec prisma generate
 pnpm exec tsx scripts/seed.ts
 
 # Start the dev server!
-pnpm run dev
-```
-
-### 2. Frontend Bootstrapping (Optional GUI)
-```bash
-cd frontend
-pnpm install
 pnpm run dev
 ```
 
