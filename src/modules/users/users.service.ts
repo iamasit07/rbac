@@ -76,8 +76,8 @@ export async function getUserById(id: string) {
     throw new AppError("User not found", 404);
   }
 
-  if(user.deletedAt === null){
-    throw new AppError("User is not deleted", 400);
+  if(user.deletedAt !== null){
+    throw new AppError("User is deleted", 400);
   }
 
   return user;
@@ -107,6 +107,15 @@ export async function updateUser(targetId: string, actorId: string, data: Update
     select: userSelectFields,
   });
 
+  await prisma.auditLog.create({
+    data: {
+      actorId,
+      action: "UPDATE_USER",
+      targetId,
+      meta: JSON.parse(JSON.stringify(data)),
+    },
+  });
+
   return user;
 }
 
@@ -130,5 +139,13 @@ export async function deleteUser(targetId: string, actorId: string) {
   await prisma.user.update({
     where: { id: targetId },
     data: { deletedAt: new Date() },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId,
+      action: "DELETE_USER",
+      targetId,
+    },
   });
 }

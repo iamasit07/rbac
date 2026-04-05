@@ -88,10 +88,6 @@ export async function listRecords(query: ListRecordsQuery, userId: string, role:
 }
 
 export async function getRecordById(id: string, userId: string, role: Role) {
-  if (role !== "ADMIN") {
-    throw new AppError("Forbidden", 403);
-  }
-
   const record = await prisma.record.findUnique({
     where: { id },
     select: recordSelectFields,
@@ -101,7 +97,8 @@ export async function getRecordById(id: string, userId: string, role: Role) {
     throw new AppError("Record not found", 404);
   }
   
-  if (record.userId !== userId) {
+  // Admin can access any record, owner can access their own
+  if (role !== "ADMIN" && record.userId !== userId) {
     throw new AppError("Forbidden", 403);
   }
 
@@ -113,10 +110,6 @@ export async function getRecordById(id: string, userId: string, role: Role) {
 }
 
 export async function updateRecord(id: string, data: UpdateRecordInput, userId: string, role: Role) {
-  if (role !== "ADMIN") {
-    throw new AppError("Forbidden", 403);
-  }
-
   const existing = await prisma.record.findUnique({
     where: { id },
   });
@@ -129,7 +122,7 @@ export async function updateRecord(id: string, data: UpdateRecordInput, userId: 
     throw new AppError("Record has been deleted", 400);
   }
 
-  if (existing.userId !== userId) {
+  if (role !== "ADMIN" && existing.userId !== userId) {
     throw new AppError("Forbidden", 403);
   }
 
@@ -145,14 +138,19 @@ export async function updateRecord(id: string, data: UpdateRecordInput, userId: 
     select: recordSelectFields,
   });
 
+  await prisma.auditLog.create({
+    data: {
+      actorId: userId,
+      action: "UPDATE_RECORD",
+      targetId: id,
+      meta: JSON.parse(JSON.stringify(data)),
+    },
+  });
+
   return record;
 }
 
 export async function deleteRecord(id: string, userId: string, role: Role) {
-  if (role !== "ADMIN") {
-    throw new AppError("Forbidden", 403);
-  }
-
   const existing = await prisma.record.findUnique({
     where: { id },
   });
@@ -165,12 +163,20 @@ export async function deleteRecord(id: string, userId: string, role: Role) {
     throw new AppError("Record is already deleted", 400);
   }
 
-  if (existing.userId !== userId) {
+  if (role !== "ADMIN" && existing.userId !== userId) {
     throw new AppError("Forbidden", 403);
   }
 
   await prisma.record.update({
     where: { id },
     data: { deletedAt: new Date() },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: userId,
+      action: "DELETE_RECORD",
+      targetId: id,
+    },
   });
 }

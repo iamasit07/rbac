@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import { env } from "./config/env";
 import { globalLimiter } from "./middlewares/rateLimiter";
 import { errorHandler } from "./middlewares/errorHandler";
@@ -10,6 +11,7 @@ import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 
 const app = express();
 
+app.use(cors({ origin: env.ALLOWED_ORIGIN }));
 app.use(express.json());
 app.use(globalLimiter);
 
