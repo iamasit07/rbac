@@ -2,10 +2,12 @@ import { Request, Response, NextFunction } from "express";
 
 export class AppError extends Error {
   public readonly statusCode: number;
+  public readonly isOperational: boolean;
   
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode: number, isOperational = true) {
     super(message);
     this.statusCode = statusCode;
+    this.isOperational = isOperational;
     Object.setPrototypeOf(this, AppError.prototype);
   }
 }
@@ -31,6 +33,12 @@ export function errorHandler(
 ): void {
   // AppError — known application error
   if (err instanceof AppError) {
+    if (!err.isOperational) {
+      // Programmer error — log full stack, hide details from client
+      console.error("[FATAL] Non-operational error:", err.stack);
+      res.status(500).json({ error: "Internal Server Error" });
+      return;
+    }
     res.status(err.statusCode).json({ error: err.message });
     return;
   }

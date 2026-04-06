@@ -43,6 +43,10 @@ model Record {
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  @@index([userId, deletedAt, date])
+  @@index([date])
+  @@index([deletedAt])
 }
 
 model AuditLog {
