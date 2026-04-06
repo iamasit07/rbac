@@ -6,7 +6,9 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),
   JWT_EXPIRY: z.string().default("7d"),
-  NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+  NODE_ENV: z
+    .enum(["development", "production", "test"])
+    .default("development"),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(900000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
@@ -22,4 +24,11 @@ if (!parsed.success) {
   process.exit(1);
 }
 
-export const env = parsed.data;
+const allowedOrigins = parsed.data.ALLOWED_ORIGIN.split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+export const env = {
+  ...parsed.data,
+  ALLOWED_ORIGINS: allowedOrigins.length > 0 ? allowedOrigins : ["*"],
+};

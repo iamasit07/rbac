@@ -11,7 +11,11 @@ import dashboardRoutes from "./modules/dashboard/dashboard.routes";
 
 const app = express();
 
-app.use(cors({ origin: env.ALLOWED_ORIGIN }));
+const corsOrigin = env.ALLOWED_ORIGINS.includes("*")
+  ? true
+  : env.ALLOWED_ORIGINS;
+
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 app.use(globalLimiter);
 
