@@ -1,16 +1,28 @@
 import { Prisma, Role } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
-import { redis } from "../../lib/redis";
-
-async function invalidateRecordCaches(userId: string) {
-  await redis.del(`records:${userId}:page:1`);
-  await redis.del(`dashboard:${userId}:summary`);
-  await redis.del(`dashboard:${userId}:by-category`);
-  await redis.del(`dashboard:${userId}:trends`);
-  await redis.del(`dashboard:${userId}:recent`);
-}
+import { safeDel } from "../../lib/redis";
 import { AppError } from "../../middlewares/errorHandler";
 import type { CreateRecordInput, UpdateRecordInput, ListRecordsQuery } from "./records.schema";
+
+const GLOBAL_CACHE_SCOPE = "global";
+
+function getCacheKeysForScope(scope: string): string[] {
+  return [
+    `records:${scope}:page:1:limit:20`,
+    `dashboard:${scope}:summary`,
+    `dashboard:${scope}:by-category`,
+    `dashboard:${scope}:trends`,
+    `dashboard:${scope}:recent`,
+  ];
+}
+
+async function invalidateRecordCaches(ownerId: string) {
+  const keys = [
+    ...getCacheKeysForScope(ownerId),
+    ...getCacheKeysForScope(GLOBAL_CACHE_SCOPE),
+  ];
+  await safeDel(...keys);
+}
 
 const recordSelectFields = {
   id: true,
@@ -137,6 +149,15 @@ export async function updateRecord(id: string, data: UpdateRecordInput, userId: 
     throw new AppError("Record not found", 404);
   }
 
+  // Capture before-state for detailed audit trail
+  const beforeSnapshot = {
+    amount: existing.amount,
+    type: existing.type,
+    category: existing.category,
+    date: existing.date,
+    notes: existing.notes,
+  };
+
   const [record] = await prisma.$transaction([
     prisma.record.update({
       where: { id },
@@ -154,7 +175,10 @@ export async function updateRecord(id: string, data: UpdateRecordInput, userId: 
         actorId: userId,
         action: "UPDATE_RECORD",
         targetId: id,
-        meta: JSON.parse(JSON.stringify(data)),
+        meta: {
+          before: JSON.parse(JSON.stringify(beforeSnapshot)),
+          after: JSON.parse(JSON.stringify(data)),
+        },
       },
     })
   ]);

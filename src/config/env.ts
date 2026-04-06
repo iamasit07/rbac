@@ -11,7 +11,7 @@ const envSchema = z.object({
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
   AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
   ALLOWED_ORIGIN: z.string().default("*"),
-  REDIS_URL: z.string().url().default("redis://redis:6379"),
+  REDIS_URL: z.url().default("redis://redis:6379"),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { env } from "../config/env";
 import { Role } from "@prisma/client";
 import { prisma } from "../lib/prisma";
-import { redis } from "../lib/redis";
+import { safeGet, safeSet, safeDel } from "../lib/redis";
 
 const jwtPayloadSchema = z.object({
   sub: z.string(),
@@ -45,16 +45,20 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     const userId = result.data.sub;
 
-    const cachedUser = await redis.get(`user:${userId}`);
+    const cachedUser = await safeGet(`user:${userId}`);
     if (cachedUser) {
-      const parsedCache = JSON.parse(cachedUser);
-      if(parsedCache.status === "inactive") {
-        res.status(401).json({ error: "Unauthorized" });
-        return;
+      try {
+        const parsedCache = JSON.parse(cachedUser);
+        if(parsedCache.status === "inactive") {
+          res.status(401).json({ error: "Unauthorized" });
+          return;
+        }
+        
+        req.user = { userId, role: parsedCache.role };
+        return next();
+      } catch (parseError) {
+         await safeDel(`user:${userId}`); // Evict corrupted logic
       }
-      
-      req.user = { userId, role: parsedCache.role };
-      return next();
     }
 
     const user = await prisma.user.findUnique({
@@ -63,11 +67,11 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
     });
 
     if (!user || user.deletedAt !== null || !user.isActive) {
-      await redis.set(`user:${userId}`, JSON.stringify({ status: "inactive" }), "EX", 3600);
+      await safeSet(`user:${userId}`, JSON.stringify({ status: "inactive" }), "EX", 3600);
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    await redis.set(`user:${userId}`, JSON.stringify({ role: user.role }), "EX", 3600);
+    await safeSet(`user:${userId}`, JSON.stringify({ role: user.role }), "EX", 3600);
 
     req.user = {
       userId,
