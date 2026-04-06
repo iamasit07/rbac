@@ -1,5 +1,6 @@
 import argon2 from "argon2";
 import { prisma } from "../../lib/prisma";
+import { redis } from "../../lib/redis";
 import { AppError } from "../../middlewares/errorHandler";
 import type { CreateUserInput, UpdateUserInput, ListUsersQuery } from "./users.schema";
 
@@ -117,6 +118,8 @@ export async function updateUser(targetId: string, actorId: string, data: Update
     })
   ]);
 
+  await redis.del(`user:${targetId}`);
+
   return user;
 }
 
@@ -150,4 +153,6 @@ export async function deleteUser(targetId: string, actorId: string) {
       },
     })
   ]);
+
+  await redis.del(`user:${targetId}`);
 }

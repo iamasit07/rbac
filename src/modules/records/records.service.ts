@@ -1,5 +1,14 @@
 import { Prisma, Role } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
+import { redis } from "../../lib/redis";
+
+async function invalidateRecordCaches(userId: string) {
+  await redis.del(`records:${userId}:page:1`);
+  await redis.del(`dashboard:${userId}:summary`);
+  await redis.del(`dashboard:${userId}:by-category`);
+  await redis.del(`dashboard:${userId}:trends`);
+  await redis.del(`dashboard:${userId}:recent`);
+}
 import { AppError } from "../../middlewares/errorHandler";
 import type { CreateRecordInput, UpdateRecordInput, ListRecordsQuery } from "./records.schema";
 
@@ -28,6 +37,8 @@ export async function createRecord(data: CreateRecordInput, userId: string) {
     },
     select: recordSelectFields,
   });
+
+  await invalidateRecordCaches(userId);
 
   return record;
 }
@@ -148,6 +159,8 @@ export async function updateRecord(id: string, data: UpdateRecordInput, userId: 
     })
   ]);
 
+  await invalidateRecordCaches(existing.userId);
+
   return record;
 }
 
@@ -181,4 +194,6 @@ export async function deleteRecord(id: string, userId: string, role: Role) {
       },
     })
   ]);
+
+  await invalidateRecordCaches(existing.userId);
 }
