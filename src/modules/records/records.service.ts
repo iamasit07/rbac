@@ -59,11 +59,11 @@ export async function listRecords(query: ListRecordsQuery, userId: string, role:
   const { page, limit, type, category, from, to, search, sortBy, order } = query;
   const skip = (page - 1) * limit >= 0 ? (page - 1) * limit : 0;
 
-  const isAdmin = role === "ADMIN";
+  const hasFullAccess = role === "ADMIN" || role === "ANALYST";
 
   const where: Prisma.RecordWhereInput = {
     deletedAt: null,
-    ...(!isAdmin && { userId }),
+    ...(!hasFullAccess && { userId }),
     ...(type && { type }),
     ...(category && { category: { contains: category, mode: "insensitive" } }),
     ...(from && { date: { gte: new Date(from) } }),
@@ -120,8 +120,7 @@ export async function getRecordById(id: string, userId: string, role: Role) {
     throw new AppError("Record not found", 404);
   }
   
-  // Admin can access any record, owner can access their own
-  if (role !== "ADMIN" && record.userId !== userId) {
+  if (role !== "ADMIN" && role !== "ANALYST" && record.userId !== userId) {
     throw new AppError("Record not found", 404);
   }
 
@@ -145,7 +144,7 @@ export async function updateRecord(id: string, data: UpdateRecordInput, userId: 
     throw new AppError("Record has been deleted", 400);
   }
 
-  if (role !== "ADMIN" && existing.userId !== userId) {
+  if (role !== "ADMIN" && role !== "ANALYST" && existing.userId !== userId) {
     throw new AppError("Record not found", 404);
   }
 
@@ -201,7 +200,7 @@ export async function deleteRecord(id: string, userId: string, role: Role) {
     throw new AppError("Record is already deleted", 400);
   }
 
-  if (role !== "ADMIN" && existing.userId !== userId) {
+  if (role !== "ADMIN" && role !== "ANALYST" && existing.userId !== userId) {
     throw new AppError("Record not found", 404);
   }
 

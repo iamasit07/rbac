@@ -7,7 +7,7 @@ const ROLE_LIMITS: Record<Role, number> = {
   VIEWER: 100,
 };
 
-const WINDOW_MS = 15 * 60 * 1000;
+const WINDOW_MS = 5 * 60 * 1000;
 
 interface BucketEntry {
   count: number;

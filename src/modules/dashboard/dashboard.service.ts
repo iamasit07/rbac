@@ -8,9 +8,10 @@ interface TrendRow {
 }
 
 function buildUserScope(userId: string, role: Role): Prisma.RecordWhereInput {
+  const hasFullAccess = role === "ADMIN" || role === "ANALYST";
   return {
     deletedAt: null,
-    ...(role !== "ADMIN" && { userId }),
+    ...(!hasFullAccess && { userId }),
   };
 }
 
@@ -62,7 +63,7 @@ export async function getTrends(userId: string, role: Role) {
   twelveMonthsAgo.setDate(1);
   twelveMonthsAgo.setHours(0, 0, 0, 0);
 
-  const isAdmin = role === "ADMIN";
+  const hasFullAccess = role === "ADMIN" || role === "ANALYST";
 
   // Aggregate in SQL — returns ~24 rows max instead of N records
   const rows = await prisma.$queryRaw<TrendRow[]>`
@@ -73,7 +74,7 @@ export async function getTrends(userId: string, role: Role) {
     FROM "Record"
     WHERE "deletedAt" IS NULL
       AND date >= ${twelveMonthsAgo}
-      ${isAdmin ? Prisma.sql`` : Prisma.sql`AND "userId" = ${userId}`}
+      ${hasFullAccess ? Prisma.sql`` : Prisma.sql`AND "userId" = ${userId}`}
     GROUP BY month, type
     ORDER BY month ASC, type ASC
   `;

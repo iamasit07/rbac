@@ -4,7 +4,8 @@ import RedisStore from "rate-limit-redis";
 import { redis } from "../lib/redis";
 import { env } from "../config/env";
 
-const bypassLimitersForTests = (req: Request, res: Response, next: NextFunction) => next();
+const skipLimiting = env.NODE_ENV === "test" || env.NODE_ENV === "development";
+const bypassLimiter = (req: Request, res: Response, next: NextFunction) => next();
 
 let redisHealthy = true;
 
@@ -31,7 +32,7 @@ function createResilientStore() {
   }
 }
 
-export const globalLimiter = env.NODE_ENV === "test" ? bypassLimitersForTests : rateLimit({
+export const globalLimiter = skipLimiting ? bypassLimiter : rateLimit({
   store: createResilientStore(),
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX,
@@ -41,7 +42,7 @@ export const globalLimiter = env.NODE_ENV === "test" ? bypassLimitersForTests : 
   passOnStoreError: true, // Fail-open only for store errors, limits still enforced via MemoryStore
 });
 
-export const authLimiter = env.NODE_ENV === "test" ? bypassLimitersForTests : rateLimit({
+export const authLimiter = skipLimiting ? bypassLimiter : rateLimit({
   store: createResilientStore(),
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.AUTH_RATE_LIMIT_MAX,

@@ -17,7 +17,9 @@ export const listRecords = catchAsync(async (req: Request, res: Response) => {
   const isPurePage1 = query.page === 1 && !query.search && !query.category && !query.type && !query.from && !query.to && query.sortBy === "date" && query.order === "desc";
 
   const cacheLimit = query.limit ?? 20;
-  const cacheKey = `records:${req.user!.userId}:page:1:limit:${cacheLimit}`;
+  const hasFullAccess = req.user!.role === "ADMIN" || req.user!.role === "ANALYST";
+  const cacheScope = hasFullAccess ? "global" : req.user!.userId;
+  const cacheKey = `records:${cacheScope}:page:1:limit:${cacheLimit}`;
 
   if (isPurePage1) {
     const cached = await safeGet(cacheKey);
